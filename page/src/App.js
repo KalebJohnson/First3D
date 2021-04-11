@@ -1,11 +1,17 @@
 import './index.css';
 import React , { useState, useRef, useEffect, Suspense } from 'react';
-import { Canvas, useFrame, extend, useThree, useLoader, DoubleSide  } from 'react-three-fiber';
-import * as THREE from 'three/src/Three'
+import { Canvas, useFrame, extend, useThree, useLoader} from 'react-three-fiber';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { useTransition, animated } from '@react-spring/three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { TextureLoader } from 'three/src/loaders/TextureLoader.js';
+import { useSpring, animated } from '@react-spring/three'
+import Select from './Comps/Select'
+import { 
+  CubeTextureLoader,
+  RGBFormat, 
+  WebGLCubeRenderTarget,
+  LinearMipmapLinearFilter,
+  CubeCamera,
+} from "three";
 
 extend({OrbitControls})
 const Controls = () => {
@@ -24,42 +30,99 @@ const Controls = () => {
   )
 } 
 
-const Plane = () => {
+const SkyBox =()=> {
+  
+  // grab the scene with useThree hook
+  const {scene} = useThree()
+  // instantiate a 6 sided cube texture
+  const loader = new CubeTextureLoader()
+  // load texture to loader
+  const texture = loader.load([
+    "/bkg1_right.png",
+    "/bkg1_left.png",
+    "/bkg1_top.png",
+    "/bkg1_bot.png",
+    "/bkg1_front.png",
+    "/bkg1_back.png",
+  ])
+  // set scene background to texture
+  scene.background = texture
+  // have to return something cuz react so we return null
+  return null
+}
 
-  const spacetexture = useLoader(TextureLoader, '/bigspace.jpg');
-  const earthtexture = useLoader(TextureLoader, '/earth.jpg');
-  const ref = useRef();
-  const vertices = [[-1, 0, 0], [0, 1, 0], [1, 0, 0], [0, -1, 0], [-1, 0, 0]]
-  useFrame(() => {
-    ref.current.rotation.y  += 0.001
+
+
+const Sphere = () => {
+
+  const [active, setActive] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const ani = useSpring({
+      color: hovered ? "orange": "black",
+      scale: active ? [4,4,4] : [1,1,1],
   })
 
-  return(
-  <group ref={ref}>
-  <mesh position={[0, 0, 0]} scale={[25, 25, 25]}>
-   <sphereBufferGeometry args={[1, 32, 32]} attach="geometry"/>
-    <meshPhysicalMaterial metalness={0.1} map={earthtexture} attach="material" DoubleSide={true}/>
+
+  const {scene, gl} = useThree()
+  const cubeRenderTarget = new WebGLCubeRenderTarget(256)
+  const cubeCam = new CubeCamera(1, 1000, cubeRenderTarget)
+  cubeCam.position.set(-100, -40, 0)
+  scene.add(cubeCam)
+  console.log(cubeCam)
+  useFrame(()=> cubeCam.update(gl, scene))
+  
+  return<mesh
+    visible position={[-100, -40, 0]}
+    rotation={[0,0,0]} castShadow>
+   <sphereGeometry args={[25, 256, 256]} attach="geometry"/>
+   <meshBasicMaterial
+        attach="material"
+        color="white"
+        roughness={0.1}
+        metalness={1}
+        envMap={cubeCam.renderTarget.texture}
+      />
   </mesh>
-  <mesh position={[0, 0, 0]} scale={[400, 400, 400]}>
-  <sphereBufferGeometry args={[1, 64, 64]} attach="geometry"/>
-    <meshBasicMaterial map={spacetexture} attach="material" side={THREE.DoubleSide}/>
-  </mesh>
-  </group>  
-  )}
+
+  }
+
+  const Ring = () => {
+    const ringRef = useRef();
+    const holotexture = useLoader(TextureLoader, '/hologram.jpg');
+    useFrame(() => {
+      ringRef.current.rotation.z  += 0.01
+    })
+    return(
+    <group>
+    <Select position={[-83,-10,-7]} />
+    <Select position={[-66.3,-40,-9.5]}/>
+    <Select position={[-80,-68,-3]}/>
+    <mesh ref={ringRef} position={[-100, -40, 0]} rotation={[-0.1,0.3,0]} scale={[10, 10, 10]}>
+    <ringGeometry args={[3,4,64]} attach="geometry"/>
+     <meshPhysicalMaterial transparent opacity={0.7} metalness={0.8} clearcoat={0.8} map={holotexture} attach="material"/>
+     
+   </mesh>
+   </group>
+    )}
 
 
 
 
-function App() {
+
+
+export default function App() {
+  
   return (
-  <Canvas shadowMap camera={{ position: [0,0,100], fov: 40 }}>
-    <spotLight position={[0,0,100]} penumbra={1}/>
+  <Canvas shadowMap camera={{ position: [0,0,200], fov: 50 }} >
     <Suspense fallback={null}>
-    <Plane/>
+    <ambientLight/>
+    <SkyBox/>
+    <spotLight position={[0,0,200]} penumbra={1}/>
+    <Sphere/>
+    <Ring/>
     <Controls/>
     </Suspense>
   </Canvas>
   );
 }
 
-export default App;
